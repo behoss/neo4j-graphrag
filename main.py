@@ -167,6 +167,13 @@ def setup_vector_store(graph, embeddings, documents):
         print("⚠️  Skipping vector store setup - embeddings not available")
         return None
 
+    # Drop existing vector index if it exists (to avoid dimension mismatch)
+    try:
+        graph.query("DROP INDEX document_embeddings IF EXISTS")
+        print("✓ Cleaned up existing vector index")
+    except Exception as e:
+        print(f"Note: {e}")
+
     # Create vector index in Neo4j
     vector_store = Neo4jVector.from_documents(
         documents,
