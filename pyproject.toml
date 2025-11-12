@@ -4,4 +4,12 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "google-genai>=1.49.0",
+    "langchain-community>=0.3.31",
+    "langchain-google-genai>=2.1.12",
+    "langchain-neo4j>=0.3.0",
+    "langchain-text-splitters>=0.3.11",
+    "neo4j>=5.28.2",
+    "python-dotenv>=1.2.1",
+]
