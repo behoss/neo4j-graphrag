@@ -1,14 +1,13 @@
 """
-GraphRAG Implementation - Automatic Entity & Relationship Extraction
-This demonstrates how GraphRAG actually works:
-1. Takes text and uses LLM to extract entities/relationships automatically
-2. Builds a knowledge graph from these extractions
-3. Queries using graph traversal + vector search
+GraphRAG Implementation - Automatic Entity & Relationship Extraction with Full Logging
+This demonstrates how GraphRAG actually works with complete visibility into the process.
 """
 
 import os
 import json
-from typing import List, Dict, cast
+from typing import Dict, cast
+from datetime import datetime
+from pathlib import Path
 from dotenv import load_dotenv
 from neo4j import GraphDatabase
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
@@ -16,38 +15,64 @@ from langchain_neo4j import Neo4jGraph, Neo4jVector
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 
+# Create logs directory
+LOGS_DIR = Path("logs")
+LOGS_DIR.mkdir(exist_ok=True)
+
+# Create log file with timestamp
+TIMESTAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
+LOG_FILE = LOGS_DIR / f"graphrag_run_{TIMESTAMP}.md"
+
+
+def log(message: str, level: str = "INFO"):
+    """Log message to both console and file"""
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    log_message = f"[{timestamp}] {level}: {message}"
+    print(message)
+    with open(LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(f"{log_message}\n\n")
+
+
+def log_section(title: str):
+    """Log a section header"""
+    separator = "=" * 60
+    log(f"\n{separator}\n{title}\n{separator}")
+
+
+def log_subsection(title: str):
+    """Log a subsection header"""
+    log(f"\n### {title}\n")
+
+
+def log_code_block(content: str, language: str = ""):
+    """Log a code block"""
+    with open(LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(f"```{language}\n{content}\n```\n\n")
+
+
 # Load environment variables
 load_dotenv(".env.local")
 
-# Configuration from environment variables
+# Configuration
 _neo4j_uri = os.getenv("NEO4J_URI")
 _neo4j_username = os.getenv("NEO4J_USERNAME")
 _neo4j_password = os.getenv("NEO4J_PASSWORD")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# Validate required environment variables
+# Validate
 if not all([_neo4j_uri, _neo4j_username, _neo4j_password]):
-    raise ValueError(
-        "Missing required Neo4j environment variables. "
-        "Please check your .env.local file contains: NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD"
-    )
+    raise ValueError("Missing required Neo4j environment variables")
+if not GEMINI_API_KEY:
+    raise ValueError("Missing GEMINI_API_KEY environment variable")
 
-# Type-safe variables (validated above)
+# Type-safe variables
 NEO4J_URI: str = cast(str, _neo4j_uri)
 NEO4J_USERNAME: str = cast(str, _neo4j_username)
 NEO4J_PASSWORD: str = cast(str, _neo4j_password)
 
-# Validate Gemini API key
-if not GEMINI_API_KEY:
-    raise ValueError(
-        "Missing GEMINI_API_KEY environment variable. "
-        "Please add it to your .env.local file"
-    )
-
-# Set Google API key for langchain-google-genai (it expects GOOGLE_API_KEY)
 os.environ["GOOGLE_API_KEY"] = GEMINI_API_KEY
 
-# Sample text - you can replace this with your own data
+# Sample text
 SAMPLE_TEXT = """
 Elon Musk is the CEO of Tesla and SpaceX. Tesla manufactures electric vehicles and battery technology.
 SpaceX develops rockets and spacecraft for space exploration. Tesla was founded in 2003 and is headquartered 
@@ -68,37 +93,42 @@ LLM applications and supports integration with Neo4j.
 
 
 def setup_components():
-    """Initialize all components"""
-    print("Initializing components...")
+    """Initialize all components with logging"""
+    log_section("INITIALIZING COMPONENTS")
 
-    # Neo4j connection
+    log_subsection("Neo4j Connection")
+    log(f"URI: {NEO4J_URI}")
+    log(f"Username: {NEO4J_USERNAME}")
+
     driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD))
     driver.verify_connectivity()
-    print("✓ Neo4j connected")
+    log("✓ Neo4j connected successfully")
     driver.close()
 
     graph = Neo4jGraph(url=NEO4J_URI, username=NEO4J_USERNAME, password=NEO4J_PASSWORD)
 
-    # LLM
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
-        temperature=0,
-        max_retries=2,
-    )
-    print("✓ LLM initialized")
+    log_subsection("LLM Configuration")
+    llm_config = {"model": "gemini-2.5-flash", "temperature": 0, "max_retries": 2}
+    log_code_block(json.dumps(llm_config, indent=2), "json")
 
-    # Embeddings
+    llm = ChatGoogleGenerativeAI(**llm_config)
+    log("✓ LLM initialized")
+
+    log_subsection("Embeddings Configuration")
+    log("Model: models/gemini-embedding-001")
     embeddings = GoogleGenerativeAIEmbeddings(model="models/gemini-embedding-001")
-    print("✓ Embeddings initialized")
+    log("✓ Embeddings initialized")
 
     return graph, llm, embeddings
 
 
-def extract_entities_and_relationships(text: str, llm) -> Dict:
-    """
-    Use LLM to automatically extract entities and relationships from text.
-    This is the KEY difference from the hard-coded version!
-    """
+def extract_entities_and_relationships(text: str, llm, chunk_num: int) -> Dict:
+    """Extract entities and relationships with full logging"""
+    log_subsection(f"Chunk #{chunk_num+1} - Entity Extraction")
+
+    log("📄 Input Text:")
+    log_code_block(text, "text")
+
     prompt = f"""Extract entities and relationships from the following text.
 
 Return a JSON object with this structure:
@@ -113,20 +143,21 @@ Return a JSON object with this structure:
 
 Rules:
 - Extract only clear, factual entities and relationships
-- Use UPPERCASE_WITH_UNDERSCORES for relationship types (e.g., "FOUNDED", "CREATED", "CEO_OF")
+- Use UPPERCASE_WITH_UNDERSCORES for relationship types
 - Keep descriptions concise
-- Only extract what's explicitly mentioned
 
 Text:
 {text}
 
 JSON:"""
 
+    log("📤 Sending to LLM...")
     response = llm.invoke(prompt)
 
-    # Parse the JSON response
+    log("📥 LLM Response (FULL):")
+    log_code_block(response.content, "json")
+
     try:
-        # Clean up the response (remove markdown code blocks if present)
         content = response.content.strip()
         if content.startswith("```json"):
             content = content[7:]
@@ -137,118 +168,127 @@ JSON:"""
         content = content.strip()
 
         data = json.loads(content)
+
+        log(
+            f"✅ Extracted: {len(data.get('entities', []))} entities, {len(data.get('relationships', []))} relationships"
+        )
+
+        log("📊 Extracted Entities:")
+        for entity in data.get("entities", [])[:5]:
+            log(f"  • {entity['name']} ({entity['type']})")
+
+        log("🔗 Extracted Relationships:")
+        for rel in data.get("relationships", [])[:5]:
+            log(f"  • {rel['source']} --{rel['type']}--> {rel['target']}")
+
         return data
     except json.JSONDecodeError as e:
-        print(f"Error parsing JSON: {e}")
-        print(f"Raw response: {response.content}")
+        log(f"❌ JSON Parse Error: {e}", "ERROR")
         return {"entities": [], "relationships": []}
 
 
 def build_graph_from_extractions(graph, extractions: Dict):
-    """
-    Build the Neo4j graph from extracted entities and relationships.
-    This creates the graph AUTOMATICALLY, not hard-coded!
-    """
+    """Build graph with logging"""
+    log_subsection("Building Graph in Neo4j")
+
     entities = extractions.get("entities", [])
     relationships = extractions.get("relationships", [])
 
-    print(
-        f"\nBuilding graph from {len(entities)} entities and {len(relationships)} relationships..."
+    log(
+        f"📊 Processing {len(entities)} entities and {len(relationships)} relationships"
     )
 
-    # Create entity nodes
+    # Create entities
+    log("Creating entity nodes...")
+    for i, entity in enumerate(entities[:3]):  # Log first 3
+        query = f"MERGE (e:{entity.get('type', 'Entity')} {{name: $name}}) SET e.description = $description"
+        log(f"Cypher Query #{i+1}:")
+        log_code_block(query, "cypher")
+        log(
+            f"Parameters: {{'name': '{entity.get('name')}', 'description': '{entity.get('description')[:50]}...'}}"
+        )
+
     for entity in entities:
-        entity_type = entity.get("type", "Entity")
-        name = entity.get("name", "")
-        description = entity.get("description", "")
-
-        if not name:
+        if not entity.get("name"):
             continue
+        query = f"MERGE (e:{entity.get('type', 'Entity')} {{name: $name}}) SET e.description = $description"
+        graph.query(
+            query,
+            params={
+                "name": entity.get("name"),
+                "description": entity.get("description"),
+            },
+        )
 
-        # Use MERGE to avoid duplicates
-        query = f"""
-        MERGE (e:{entity_type} {{name: $name}})
-        SET e.description = $description
-        """
-        graph.query(query, params={"name": name, "description": description})
-
-    print(f"✓ Created {len(entities)} entity nodes")
+    log(f"✅ Created {len(entities)} nodes")
 
     # Create relationships
-    created_relationships = 0
+    log("Creating relationships...")
+    created = 0
+    for rel in relationships[:3]:  # Log first 3
+        query = f"MATCH (a {{name: $source}}) MATCH (b {{name: $target}}) MERGE (a)-[r:{rel.get('type', 'RELATED_TO')}]->(b) SET r.description = $description"
+        log(f"Cypher Query:")
+        log_code_block(query, "cypher")
+
     for rel in relationships:
-        source = rel.get("source", "")
-        target = rel.get("target", "")
-        rel_type = rel.get("type", "RELATED_TO")
-        description = rel.get("description", "")
-
-        if not source or not target:
+        if not rel.get("source") or not rel.get("target"):
             continue
-
-        # Create relationship between entities (regardless of type)
-        query = f"""
-        MATCH (a {{name: $source}})
-        MATCH (b {{name: $target}})
-        MERGE (a)-[r:{rel_type}]->(b)
-        SET r.description = $description
-        """
+        query = f"MATCH (a {{name: $source}}) MATCH (b {{name: $target}}) MERGE (a)-[r:{rel.get('type', 'RELATED_TO')}]->(b) SET r.description = $description"
         try:
             graph.query(
                 query,
-                params={"source": source, "target": target, "description": description},
+                params={
+                    "source": rel.get("source"),
+                    "target": rel.get("target"),
+                    "description": rel.get("description"),
+                },
             )
-            created_relationships += 1
+            created += 1
         except Exception as e:
-            print(f"Warning: Could not create relationship {source}->{target}: {e}")
+            log(
+                f"⚠️ Could not create {rel.get('source')}->{rel.get('target')}: {e}",
+                "WARN",
+            )
 
-    print(f"✓ Created {created_relationships} relationships")
+    log(f"✅ Created {created} relationships")
 
 
 def create_knowledge_graph_from_text(graph, llm, text: str):
-    """
-    Main function: Takes raw text and builds a knowledge graph automatically
-    """
-    print("\n" + "=" * 60)
-    print("BUILDING KNOWLEDGE GRAPH FROM TEXT")
-    print("=" * 60)
+    """Build knowledge graph with full logging"""
+    log_section("BUILDING KNOWLEDGE GRAPH FROM TEXT")
 
-    # Clear existing graph
+    log("📝 Full Input Text:")
+    log_code_block(text, "text")
+
+    log("🗑️ Clearing existing graph...")
     graph.query("MATCH (n) DETACH DELETE n")
-    print("✓ Cleared existing graph")
+    log("✓ Graph cleared")
 
-    # Split text into chunks
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500,
-        chunk_overlap=100,
-    )
+    log("✂️ Splitting text into chunks...")
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
     chunks = text_splitter.split_text(text)
-    print(f"✓ Split text into {len(chunks)} chunks")
+    log(f"✓ Created {len(chunks)} chunks")
 
-    # Process each chunk
+    for i, chunk in enumerate(chunks):
+        log(f"\nChunk {i+1}/{len(chunks)} ({len(chunk)} chars) - FULL:")
+        log_code_block(chunk, "text")
+
     all_entities = []
     all_relationships = []
 
     for i, chunk in enumerate(chunks):
-        print(f"\nProcessing chunk {i+1}/{len(chunks)}...")
-        extractions = extract_entities_and_relationships(chunk, llm)
-
-        # Collect all extractions
+        log(f"\n🔄 Processing chunk {i+1}/{len(chunks)}...")
+        extractions = extract_entities_and_relationships(chunk, llm, i)
         all_entities.extend(extractions.get("entities", []))
         all_relationships.extend(extractions.get("relationships", []))
 
-        print(
-            f"  Found {len(extractions.get('entities', []))} entities, {len(extractions.get('relationships', []))} relationships"
-        )
+    log_subsection("Summary of All Extractions")
+    log(f"Total entities: {len(all_entities)}")
+    log(f"Total relationships: {len(all_relationships)}")
 
-    # Build the graph
-    combined_extractions = {
-        "entities": all_entities,
-        "relationships": all_relationships,
-    }
+    combined = {"entities": all_entities, "relationships": all_relationships}
+    build_graph_from_extractions(graph, combined)
 
-    build_graph_from_extractions(graph, combined_extractions)
-
-    # Create documents for vector store
     documents = [
         Document(page_content=chunk, metadata={"chunk_id": i, "source": "sample_text"})
         for i, chunk in enumerate(chunks)
@@ -258,17 +298,19 @@ def create_knowledge_graph_from_text(graph, llm, text: str):
 
 
 def setup_vector_store(graph, embeddings, documents):
-    """Create vector store for semantic search"""
-    print("\n" + "=" * 60)
-    print("SETTING UP VECTOR STORE")
-    print("=" * 60)
+    """Create vector store with logging"""
+    log_section("SETTING UP VECTOR STORE")
 
-    # Clean up existing index
+    log(f"📊 Creating embeddings for {len(documents)} documents...")
+    log("Dropping existing index if present...")
+
     try:
         graph.query("DROP INDEX vector_index IF EXISTS")
+        log("✓ Cleaned up old index")
     except:
         pass
 
+    log("Creating new vector index...")
     vector_store = Neo4jVector.from_documents(
         documents,
         embeddings,
@@ -281,112 +323,86 @@ def setup_vector_store(graph, embeddings, documents):
         text_node_property="text",
     )
 
-    print("✓ Vector store created")
+    log("✅ Vector store created successfully")
     return vector_store
 
 
 def visualize_graph(graph):
-    """Show what's in the graph"""
-    print("\n" + "=" * 60)
-    print("GRAPH CONTENTS")
-    print("=" * 60)
+    """Visualize graph with logging"""
+    log_section("GRAPH VISUALIZATION")
 
-    # Show entities by type
-    result = graph.query(
-        """
-        MATCH (n)
-        RETURN labels(n)[0] as type, n.name as name, n.description as description
-        ORDER BY type, name
-        LIMIT 20
-    """
-    )
+    log("Query: Fetching all nodes...")
+    query = "MATCH (n) RETURN labels(n)[0] as type, n.name as name, n.description as description ORDER BY type, name LIMIT 20"
+    log_code_block(query, "cypher")
 
+    result = graph.query(query)
+
+    log(f"📊 Found {len(result)} nodes")
     current_type = None
     for record in result:
         entity_type = record["type"]
         if entity_type != current_type:
-            print(f"\n{entity_type}s:")
+            log(f"\n{entity_type}s:")
             current_type = entity_type
-        print(f"  • {record['name']}: {record['description']}")
+        log(f"  • {record['name']}: {record['description']}")
 
-    # Show relationships
-    print("\nRelationships:")
-    rel_result = graph.query(
-        """
-        MATCH (a)-[r]->(b)
-        RETURN a.name as source, type(r) as relationship, b.name as target
-        LIMIT 15
-    """
-    )
+    log("\n🔗 Relationships:")
+    rel_query = "MATCH (a)-[r]->(b) RETURN a.name as source, type(r) as relationship, b.name as target LIMIT 15"
+    log_code_block(rel_query, "cypher")
 
+    rel_result = graph.query(rel_query)
     for record in rel_result:
-        print(
-            f"  • {record['source']} --{record['relationship']}--> {record['target']}"
-        )
+        log(f"  • {record['source']} --{record['relationship']}--> {record['target']}")
 
 
 def graph_query_example(graph):
-    """Show how to query the graph directly (not using vector search)"""
-    print("\n" + "=" * 60)
-    print("GRAPH QUERY EXAMPLE")
-    print("=" * 60)
+    """Example graph query with logging"""
+    log_section("PURE GRAPH QUERY EXAMPLE")
 
-    # Example: Find all companies and what they created
-    print("\nQuery: What did companies create?")
-    result = graph.query(
-        """
-        MATCH (company:Company)-[r:CREATED]->(product)
-        RETURN company.name as company, product.name as product, r.description as details
-    """
-    )
+    log("Query: What did companies create?")
+    query = "MATCH (company:Company)-[r:CREATED]->(product) RETURN company.name as company, product.name as product"
+    log_code_block(query, "cypher")
 
+    result = graph.query(query)
+    log(f"Results: {len(result)} items")
     for record in result:
-        print(f"  • {record['company']} created {record['product']}")
+        log(f"  • {record['company']} created {record['product']}")
 
 
 def graphrag_query(vector_store, graph, llm, question: str):
-    """
-    The real GraphRAG query: combines vector search + graph traversal
-    """
-    print("\n" + "=" * 60)
-    print(f"QUESTION: {question}")
-    print("=" * 60)
+    """GraphRAG query with full logging"""
+    log_section(f"GRAPHRAG QUERY")
+    log(f"❓ Question: {question}")
 
-    # Step 1: Vector search to find relevant starting points
-    print("\n1. Searching for relevant content...")
+    log_subsection("Step 1: Vector Search")
+    log("Searching for relevant chunks (k=3)...")
     relevant_docs = vector_store.similarity_search(question, k=3)
 
-    print("   Found relevant chunks:")
+    log(f"Found {len(relevant_docs)} relevant chunks:")
     for i, doc in enumerate(relevant_docs, 1):
-        print(f"   {i}. {doc.page_content[:100]}...")
+        log(f"\nChunk {i} (FULL):")
+        log_code_block(doc.page_content, "text")
 
-    # Step 2: Extract entities mentioned in relevant docs to use as graph entry points
     context_text = "\n".join([doc.page_content for doc in relevant_docs])
 
-    # Step 3: Use graph to find connected information
-    print("\n2. Traversing graph for connected information...")
+    log_subsection("Step 2: Graph Traversal")
+    query = "MATCH (e)-[r]->(connected) RETURN e.name as entity, type(r) as relationship, connected.name as connected_entity LIMIT 10"
+    log("Cypher Query:")
+    log_code_block(query, "cypher")
 
-    # Find entities mentioned in context and get their connections
-    graph_result = graph.query(
-        """
-        MATCH (e)-[r]->(connected)
-        RETURN e.name as entity, type(r) as relationship, connected.name as connected_entity, 
-               connected.description as description
-        LIMIT 10
-    """
-    )
+    graph_result = graph.query(query)
+    log(f"Found {len(graph_result)} graph connections:")
 
     graph_context = "\nGraph connections:\n"
     for record in graph_result:
-        graph_context += f"- {record['entity']} {record['relationship']} {record['connected_entity']}\n"
+        connection = f"{record['entity']} --{record['relationship']}--> {record['connected_entity']}"
+        log(f"  • {connection}")
+        graph_context += f"- {connection}\n"
 
-    print(f"   Found {len(graph_result)} graph connections")
-
-    # Step 4: Combine vector search results + graph traversal for LLM
-    combined_context = f"""Text Content:
-{context_text}
-
-{graph_context}"""
+    log_subsection("Step 3: Combining Context")
+    combined_context = f"Text Content:\n{context_text}\n\n{graph_context}"
+    log("Combined context (FULL):")
+    log_code_block(combined_context, "text")
 
     prompt = f"""Answer the question based on the provided context.
 
@@ -397,43 +413,30 @@ Question: {question}
 
 Answer:"""
 
-    print("\n3. Generating answer with LLM...")
+    log_subsection("Step 4: LLM Answer Generation")
+    log("Sending to LLM...")
     response = llm.invoke(prompt)
 
-    print("\n" + "=" * 60)
-    print("ANSWER:")
-    print("=" * 60)
-    print(response.content)
-    print("=" * 60)
+    log("\n✅ ANSWER:")
+    log_code_block(response.content, "text")
+    log(response.content)
 
     return response.content
 
 
 def main():
-    """Run the complete GraphRAG demo"""
-    print("=" * 60)
-    print("REAL GRAPHRAG DEMO - AUTOMATIC EXTRACTION")
-    print("=" * 60)
+    """Run GraphRAG demo with full logging"""
+    log_section("GRAPHRAG DEMO - AUTOMATIC EXTRACTION")
+    log(f"Log file: {LOG_FILE}")
+    log(f"Timestamp: {TIMESTAMP}")
 
-    # Setup
     graph, llm, embeddings = setup_components()
-
-    # Build knowledge graph automatically from text
     documents = create_knowledge_graph_from_text(graph, llm, SAMPLE_TEXT)
-
-    # Setup vector store
     vector_store = setup_vector_store(graph, embeddings, documents)
-
-    # Visualize what we built
     visualize_graph(graph)
-
-    # Show a pure graph query
     graph_query_example(graph)
 
-    # GraphRAG queries
-    print("\n" + "=" * 60)
-    print("GRAPHRAG QUERIES (Vector + Graph)")
-    print("=" * 60)
+    log_section("GRAPHRAG QUERIES")
 
     questions = [
         "What companies did Elon Musk found?",
@@ -444,8 +447,9 @@ def main():
     for question in questions:
         graphrag_query(vector_store, graph, llm, question)
 
-    print("\n✓ Demo complete!")
-    print("\nTry changing the SAMPLE_TEXT variable to your own data!")
+    log_section("DEMO COMPLETE")
+    log(f"✅ Full log saved to: {LOG_FILE}")
+    log("\n📝 Check the logs/ directory for complete execution details!")
 
 
 if __name__ == "__main__":

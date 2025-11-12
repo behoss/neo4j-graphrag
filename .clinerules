@@ -1,0 +1,18 @@
+# Project Rules for neo4j-graphrag
+
+## File Management
+- NEVER create multiple versions of main.py (e.g., main_old.py, main_v2.py, main_with_logging.py)
+- There should ONLY be ONE main.py file in the project
+- If changes are needed, modify main.py directly
+- Never create backup files - use git for version control instead
+
+## Logging
+- NO truncation in logs - all content must be logged in full
+- Log files should contain complete LLM responses, prompts, and data
+- Use markdown format for log files with timestamps
+
+## Code Style
+- Use one-liner docstrings only
+- Do not add documentation unless explicitly asked
+- Log all major operations
+- Include error handling with detailed error messages
