@@ -30,7 +30,7 @@ def log(message: str, level: str = "INFO"):
     log_message = f"[{timestamp}] {level}: {message}"
     print(message)
     with open(LOG_FILE, "a", encoding="utf-8") as f:
-        f.write(f"{log_message}\n\n")
+        f.write(f"{message}\n\n")
 
 
 def log_section(title: str):
@@ -154,33 +154,26 @@ JSON:"""
     log("📤 Sending to LLM...")
     response = llm.invoke(prompt)
 
-    log("📥 LLM Response (FULL):")
-    log_code_block(response.content, "json")
+    log("📥 LLM Response:")
+
+    # Parse response
+    content = response.content.strip()
+    if content.startswith("```json"):
+        content = content[7:]
+    if content.startswith("```"):
+        content = content[3:]
+    if content.endswith("```"):
+        content = content[:-3]
+    content = content.strip()
+
+    # Log the clean JSON
+    log_code_block(content, "json")
 
     try:
-        content = response.content.strip()
-        if content.startswith("```json"):
-            content = content[7:]
-        if content.startswith("```"):
-            content = content[3:]
-        if content.endswith("```"):
-            content = content[:-3]
-        content = content.strip()
-
         data = json.loads(content)
-
         log(
             f"✅ Extracted: {len(data.get('entities', []))} entities, {len(data.get('relationships', []))} relationships"
         )
-
-        log("📊 Extracted Entities:")
-        for entity in data.get("entities", [])[:5]:
-            log(f"  • {entity['name']} ({entity['type']})")
-
-        log("🔗 Extracted Relationships:")
-        for rel in data.get("relationships", [])[:5]:
-            log(f"  • {rel['source']} --{rel['type']}--> {rel['target']}")
-
         return data
     except json.JSONDecodeError as e:
         log(f"❌ JSON Parse Error: {e}", "ERROR")
@@ -267,11 +260,7 @@ def create_knowledge_graph_from_text(graph, llm, text: str):
     log("✂️ Splitting text into chunks...")
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
     chunks = text_splitter.split_text(text)
-    log(f"✓ Created {len(chunks)} chunks")
-
-    for i, chunk in enumerate(chunks):
-        log(f"\nChunk {i+1}/{len(chunks)} ({len(chunk)} chars) - FULL:")
-        log_code_block(chunk, "text")
+    log(f"✓ Created {len(chunks)} chunks\n")
 
     all_entities = []
     all_relationships = []
@@ -331,13 +320,13 @@ def visualize_graph(graph):
     """Visualize graph with logging"""
     log_section("GRAPH VISUALIZATION")
 
-    log("Query: Fetching all nodes...")
-    query = "MATCH (n) RETURN labels(n)[0] as type, n.name as name, n.description as description ORDER BY type, name LIMIT 20"
+    log("Query: Fetching all nodes (excluding Chunk nodes used for vector search)...")
+    query = "MATCH (n) WHERE NOT 'Chunk' IN labels(n) RETURN labels(n)[0] as type, n.name as name, n.description as description ORDER BY type, name LIMIT 20"
     log_code_block(query, "cypher")
 
     result = graph.query(query)
 
-    log(f"📊 Found {len(result)} nodes")
+    log(f"📊 Found {len(result)} entity nodes")
     current_type = None
     for record in result:
         entity_type = record["type"]
@@ -380,7 +369,7 @@ def graphrag_query(vector_store, graph, llm, question: str):
 
     log(f"Found {len(relevant_docs)} relevant chunks:")
     for i, doc in enumerate(relevant_docs, 1):
-        log(f"\nChunk {i} (FULL):")
+        log(f"\nChunk {i}:")
         log_code_block(doc.page_content, "text")
 
     context_text = "\n".join([doc.page_content for doc in relevant_docs])
@@ -401,7 +390,7 @@ def graphrag_query(vector_store, graph, llm, question: str):
 
     log_subsection("Step 3: Combining Context")
     combined_context = f"Text Content:\n{context_text}\n\n{graph_context}"
-    log("Combined context (FULL):")
+    log("Combined context:")
     log_code_block(combined_context, "text")
 
     prompt = f"""Answer the question based on the provided context.
@@ -419,7 +408,6 @@ Answer:"""
 
     log("\n✅ ANSWER:")
     log_code_block(response.content, "text")
-    log(response.content)
 
     return response.content
 
