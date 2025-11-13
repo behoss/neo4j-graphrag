@@ -5,7 +5,7 @@ GraphRAG Pipeline - Core application logic for knowledge graph construction and 
 import os
 import sys
 import json
-from typing import Dict
+from typing import Dict, Optional
 from datetime import datetime
 from pathlib import Path
 from neo4j import GraphDatabase
@@ -102,9 +102,7 @@ class GraphRAGPipeline:
         )
         self.log("✓ Embeddings initialized")
 
-    def extract_entities_and_relationships(
-        self, text: str, chunk_num: int
-    ) -> Dict:
+    def extract_entities_and_relationships(self, text: str, chunk_num: int) -> Dict:
         """Extract entities and relationships with full logging"""
         self.log_subsection(f"Chunk #{chunk_num+1} - Entity Extraction")
 
@@ -161,7 +159,12 @@ JSON:"""
             self.log(f"❌ JSON Parse Error: {e}", "ERROR")
             return {"entities": [], "relationships": []}
 
-    def build_graph_from_extractions(self, extractions: Dict):
+    def build_graph_from_extractions(
+        self,
+        extractions: Dict,
+        document_id: Optional[str] = None,
+        document_title: Optional[str] = None,
+    ):
         """Build graph with logging"""
         self.log_subsection("Building Graph in Neo4j")
 
@@ -172,44 +175,71 @@ JSON:"""
             f"📊 Processing {len(entities)} entities and {len(relationships)} relationships"
         )
 
-        # Create entities
-        self.log("Creating entity nodes...")
-        for entity in entities:
-            if not entity.get("name"):
-                continue
-            query = f"MERGE (e:{entity.get('type', 'Entity')} {{name: $name}}) SET e.description = $description"
-            self.graph.query(
-                query,
-                params={
-                    "name": entity.get("name"),
-                    "description": entity.get("description"),
-                },
+        # Create entities in batches
+        self.log("Creating entity nodes in batches...")
+        BATCH_SIZE = 100
+        for i in range(0, len(entities), BATCH_SIZE):
+            batch = entities[i : i + BATCH_SIZE]
+            for entity in batch:
+                if not entity.get("name"):
+                    continue
+                # Escape entity type with backticks to handle spaces
+                entity_type = entity.get("type", "Entity").replace("`", "")
+                query = f"MERGE (e:`{entity_type}` {{name: $name, document_id: $document_id}}) SET e.description = $description, e.document_title = $document_title"
+                try:
+                    self.graph.query(
+                        query,
+                        params={
+                            "name": entity.get("name"),
+                            "description": entity.get("description"),
+                            "document_id": document_id,
+                            "document_title": document_title,
+                        },
+                    )
+                except Exception as e:
+                    self.log(
+                        f"⚠️ Error creating entity {entity.get('name')}: {e}", "WARN"
+                    )
+            self.log(
+                f"  Batch {(i//BATCH_SIZE)+1}/{(len(entities)+BATCH_SIZE-1)//BATCH_SIZE} completed"
             )
 
         self.log(f"✅ Created {len(entities)} nodes")
 
-        # Create relationships
-        self.log("Creating relationships...")
+        # Create relationships in batches
+        self.log("Creating relationships in batches...")
+        print("Creating relationships in batches...")
+        REL_BATCH_SIZE = 200
         created = 0
-        for rel in relationships:
-            if not rel.get("source") or not rel.get("target"):
-                continue
-            query = f"MATCH (a {{name: $source}}) MATCH (b {{name: $target}}) MERGE (a)-[r:{rel.get('type', 'RELATED_TO')}]->(b) SET r.description = $description"
-            try:
-                self.graph.query(
-                    query,
-                    params={
-                        "source": rel.get("source"),
-                        "target": rel.get("target"),
-                        "description": rel.get("description"),
-                    },
-                )
-                created += 1
-            except Exception as e:
-                self.log(
-                    f"⚠️ Could not create {rel.get('source')}->{rel.get('target')}: {e}",
-                    "WARN",
-                )
+
+        for i in range(0, len(relationships), REL_BATCH_SIZE):
+            batch = relationships[i : i + REL_BATCH_SIZE]
+            for rel in batch:
+                if not rel.get("source") or not rel.get("target"):
+                    continue
+                query = f"MATCH (a {{name: $source}}) MATCH (b {{name: $target}}) MERGE (a)-[r:{rel.get('type', 'RELATED_TO')}]->(b) SET r.description = $description"
+                try:
+                    self.graph.query(
+                        query,
+                        params={
+                            "source": rel.get("source"),
+                            "target": rel.get("target"),
+                            "description": rel.get("description"),
+                        },
+                    )
+                    created += 1
+                except Exception as e:
+                    self.log(
+                        f"⚠️ Could not create {rel.get('source')}->{rel.get('target')}: {e}",
+                        "WARN",
+                    )
+
+            batch_num = (i // REL_BATCH_SIZE) + 1
+            total_rel_batches = (
+                len(relationships) + REL_BATCH_SIZE - 1
+            ) // REL_BATCH_SIZE
+            self.log(f"  Batch {batch_num}/{total_rel_batches} completed")
+            print(f"  Batch {batch_num}/{total_rel_batches} completed")
 
         self.log(f"✅ Created {created} relationships")
 
@@ -246,7 +276,9 @@ JSON:"""
         self.log(f"Total relationships: {len(all_relationships)}")
 
         combined = {"entities": all_entities, "relationships": all_relationships}
-        self.build_graph_from_extractions(combined)
+        self.build_graph_from_extractions(
+            combined, document_id=None, document_title=None
+        )
 
         # Create vector store
         self.log_section("SETTING UP VECTOR STORE")

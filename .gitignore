@@ -10,6 +10,9 @@ files/
 logs/
 *.log
 
+# Cache
+cache/
+
 # Python
 __pycache__/
 *.py[cod]
