@@ -155,22 +155,19 @@ JSON list of entities:"""
 
             # If we have entities from LLM, use them; otherwise fall back to a general query
             if extracted_entities:
-                # Query for connections involving these entities
+                # Query for connections involving these entities (case-insensitive matching)
                 graph_query = """
                 MATCH (e)-[r]->(connected)
                 WHERE e.document_id = $document_id 
                   AND connected.document_id = $document_id
-                  AND (e.name IN $entity_names OR connected.name IN $entity_names)
+                  AND (
+                    ANY(entity_name IN $entity_names WHERE toLower(e.name) = toLower(entity_name))
+                    OR ANY(entity_name IN $entity_names WHERE toLower(connected.name) = toLower(entity_name))
+                  )
                 RETURN DISTINCT e.name as entity, 
                        type(r) as relationship, 
                        connected.name as connected_entity, 
                        r.description as description
-                ORDER BY 
-                  CASE 
-                    WHEN e.name IN $entity_names AND connected.name IN $entity_names THEN 0
-                    ELSE 1
-                  END,
-                  e.name, connected.name
                 LIMIT 50
                 """
                 graph_result = pipeline.graph.query(
