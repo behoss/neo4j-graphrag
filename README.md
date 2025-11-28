@@ -1,299 +1,259 @@
-# Neo4j GraphRAG with Google Gemini
+# Neo4j GraphRAG
 
-A document-scoped GraphRAG implementation using Neo4j Aura DB and Google's Gemini AI for intelligent document querying with knowledge graph construction.
+A production-ready Knowledge Graph RAG (Retrieval-Augmented Generation) solution using Neo4j and Google Gemini.
 
 ## Features
 
-- 🤖 **Automatic Entity Extraction**: Uses Gemini to automatically extract entities and relationships from documents
-- 📚 **Document-Scoped Queries**: Each document is isolated - queries only search within the selected document
-- 🔍 **Vector + Graph Search**: Combines semantic search with graph traversal for comprehensive answers
-- 📊 **Full Logging**: Complete visibility into the extraction and query process
-- 🛠️ **Document Management**: Tools to list, inspect, and delete documents
+- **Knowledge Graph Construction**: Automatically extract entities and relationships from text documents
+- **Entity Resolution**: Merge duplicate entities using exact, fuzzy, or semantic matching
+- **Vector Search**: Semantic similarity search using embeddings
+- **Graph-Enhanced RAG**: Combine vector search with graph traversal for better context
+- **Production Ready**: Proper constraints, indexes, and error handling
 
 ## Architecture
 
+This solution follows the official Neo4j GraphRAG patterns:
+
 ```
-┌─────────────────────────────────────────────────────┐
-│                   Neo4j Database                    │
-├─────────────────────────────────────────────────────┤
-│  Entities (Person, Company, Product, etc.)         │
-│  ├─ document_id: "moby-dick"                       │
-│  ├─ document_title: "Moby Dick"                    │
-│  └─ name, description, type                        │
-│                                                      │
-│  Chunks (for vector search)                        │
-│  ├─ document_id: "moby-dick"                       │
-│  ├─ document_title: "Moby Dick"                    │
-│  └─ text, embedding                                │
-│                                                      │
-│  Relationships (connects entities)                 │
-│  └─ type, description                              │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                    Document Ingestion                        │
+├─────────────────────────────────────────────────────────────┤
+│  Text → Chunks → Entity Extraction → Graph Building         │
+│                         ↓                                    │
+│              Entity Resolution (Deduplication)               │
+│                         ↓                                    │
+│              Vector Index + Graph Storage                    │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                        Query                                 │
+├─────────────────────────────────────────────────────────────┤
+│  Question → Vector Search + Graph Traversal → LLM Answer    │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## Setup
+## Installation
 
-### 1. Install Dependencies
+### Prerequisites
 
-Using UV (recommended):
+- Python 3.12+
+- Neo4j AuraDB or local Neo4j instance (5.18+)
+- Google Gemini API key
+
+### Setup
+
+1. Clone the repository:
+```bash
+git clone https://github.com/behoss/neo4j-graphrag.git
+cd neo4j-graphrag
+```
+
+2. Install dependencies using uv:
 ```bash
 uv sync
 ```
 
-Or with pip:
+Or using pip:
 ```bash
-pip install -r requirements.txt
+pip install -e .
 ```
 
-### 2. Configure Environment
-
-Create `.env.local`:
+3. Create a `.env.local` file:
 ```bash
-# Neo4j Aura DB credentials
+cp .env.example .env.local
+```
+
+4. Edit `.env.local` with your credentials:
+```env
+# Neo4j AuraDB credentials
 NEO4J_URI=neo4j+s://your-instance.databases.neo4j.io
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=your-password
 
 # Google Gemini API key
-GEMINI_API_KEY=your-gemini-api-key
+GEMINI_API_KEY=your-api-key
+```
+
+5. Initialize the database:
+```bash
+python -m src.cli init
 ```
 
 ## Usage
 
-### 1. Ingest Documents
+### Command Line Interface
 
-Add documents to the knowledge graph (one-time, expensive process):
-
-```bash
-# Basic ingestion
-python ingest.py files/moby_dick.txt "Moby Dick"
-
-# With overwrite (re-ingest existing document)
-python ingest.py files/1984.txt "Nineteen Eighty-Four" --overwrite
-```
-
-**What happens during ingestion:**
-- Text is split into chunks (500 chars, 100 overlap)
-- Each chunk is sent to Gemini for entity/relationship extraction
-- Entities and relationships are stored in Neo4j with `document_id` tags
-- Embeddings are created for semantic search
-- All steps are logged to `logs/graphrag_run_*.md`
-
-### 2. Query Documents
-
-Interactive query session with document selection:
+The CLI provides several commands for managing your knowledge graph:
 
 ```bash
-python query.py
-```
+# Initialize database with constraints and indexes
+python -m src.cli init
 
-**Interactive workflow:**
-```
-============================================================
-📚 Available Documents
-============================================================
+# Ingest a document
+python -m src.cli ingest files/document.txt --title "My Document"
 
-1. Moby Dick
-   ID: moby-dick
-   Entities: 543, Chunks: 1247
-
-2. Nineteen Eighty-Four
-   ID: 1984
-   Entities: 321, Chunks: 892
-
-Select document (1-2): 1
-
-============================================================
-📚 Querying Document: Moby Dick
-============================================================
-
-📊 Document Statistics:
-  • Entities: 543
-  • Relationships: 234
-  • Chunks: 1247
-
-============================================================
-GraphRAG is ready! Ask questions about 'Moby Dick'
-Type 'exit' to quit
-============================================================
-
-❓ Your question: Who is Captain Ahab?
-✅ Answer: [AI-generated response based on the document]
-```
-
-### 3. Manage Documents
-
-List all documents:
-```bash
-python doc_manager.py --list
-```
-
-Get document details:
-```bash
-python doc_manager.py --info moby-dick
-```
-
-Delete a document:
-```bash
-python doc_manager.py --delete moby-dick
-```
-
-## File Structure
-
-```
-neo4j-graphrag/
-├── main.py              # Core GraphRAGPipeline class
-├── ingest.py            # Document ingestion CLI
-├── query.py             # Document query CLI
-├── doc_manager.py       # Document management CLI
-├── demo.py              # Example/demo script
-├── files/               # Place your .txt documents here
-│   ├── document1.txt
-│   └── document2.txt
-└── logs/                # Auto-generated logs
-    └── graphrag_run_*.md
-```
-
-## How It Works
-
-### GraphRAG Query Process
-
-When you ask a question, the system:
-
-1. **Vector Search**: Finds the 3 most relevant text chunks using semantic similarity (filtered by `document_id`)
-2. **Graph Traversal**: Queries the knowledge graph for connected entities and relationships (filtered by `document_id`)
-3. **Context Combination**: Merges text chunks with graph connections
-4. **LLM Generation**: Sends combined context to Gemini for answer generation
-
-### Document Isolation
-
-- Each document has a unique `document_id` (normalized from title: lowercase, hyphenated)
-- All entities, relationships, and chunks are tagged with `document_id`
-- Queries filter by `document_id` ensuring no cross-document contamination
-- Multiple documents coexist in one Neo4j database
-
-## Examples
-
-### Example 1: Ingest a Book
-
-```bash
-# Place your book.txt in the files/ directory
-python ingest.py files/pride_and_prejudice.txt "Pride and Prejudice"
-```
-
-Output:
-```
-📚 Ingesting Document
-============================================================
-Title: Pride and Prejudice
-ID: pride-and-prejudice
-File: files/pride_and_prejudice.txt
-============================================================
-
-📄 Document size: 725000 characters
-
-🔄 Processing document...
-✂️ Splitting text into chunks...
-✓ Created 1450 chunks
-
-🔄 Processing chunk 1/1450...
-[... extraction process ...]
-
-✅ Document ingested successfully!
-============================================================
-📊 Statistics:
-  • Entities: 892
-  • Relationships: 456
-  • Chunks: 1450
-
-📝 Log file: logs/graphrag_run_20251113_120000.md
-```
-
-### Example 2: Query a Document
-
-```bash
-python query.py
-# Select document 1 (Pride and Prejudice)
-# Ask: "What is the relationship between Elizabeth and Mr. Darcy?"
-```
-
-### Example 3: Manage Documents
-
-```bash
 # List all documents
-python doc_manager.py --list
+python -m src.cli list
 
-# Get details about a specific document
-python doc_manager.py --info pride-and-prejudice
+# Query the knowledge graph
+python -m src.cli query
+
+# Show document info
+python -m src.cli info my-document
 
 # Delete a document
-python doc_manager.py --delete pride-and-prejudice
+python -m src.cli delete my-document
+
+# Show database statistics
+python -m src.cli stats
+
+# Purge all data (use with caution!)
+python -m src.cli purge
 ```
 
-## Logging
+### Python API
 
-Every operation is logged to `logs/graphrag_run_*.md` with:
-- Full input text
-- LLM prompts and responses
-- Extracted entities and relationships (as JSON)
-- Cypher queries executed
-- Vector search results
-- Final answers
-
-## Customization
-
-### Adjust Chunk Size
-
-Edit `ingest.py` or `query.py`:
 ```python
-text_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=500,    # Increase for larger chunks
-    chunk_overlap=100  # Adjust overlap
+import asyncio
+from src.config import PipelineConfig
+from src.pipeline import GraphRAGPipeline
+
+# Load configuration from environment
+config = PipelineConfig.from_env()
+
+# Create pipeline
+with GraphRAGPipeline(config) as pipeline:
+    # Initialize database
+    pipeline.db.initialize()
+    
+    # Ingest a document
+    result = asyncio.run(pipeline.ingest_text(
+        text="Your document text here...",
+        document_id="my-doc",
+        document_title="My Document",
+    ))
+    
+    print(f"Ingested: {result['entities']} entities, {result['relationships']} relationships")
+    
+    # Query the knowledge graph
+    answer = asyncio.run(pipeline.query("What is this document about?"))
+    print(f"Answer: {answer}")
+```
+
+### Demo
+
+Run the demo script to see the pipeline in action:
+
+```bash
+python demo.py
+```
+
+## Configuration
+
+### Schema Configuration
+
+The default schema includes common entity types and relationships. You can customize it in `src/config.py`:
+
+```python
+from src.config import SchemaConfig
+
+schema = SchemaConfig(
+    node_types=[
+        {"label": "Person", "properties": [{"name": "name", "type": "STRING", "required": True}]},
+        {"label": "Organization", "properties": [{"name": "name", "type": "STRING", "required": True}]},
+        # Add more entity types...
+    ],
+    relationship_types=[
+        {"label": "WORKS_FOR", "description": "Person works for organization"},
+        # Add more relationship types...
+    ],
+    patterns=[
+        ("Person", "WORKS_FOR", "Organization"),
+        # Add more patterns...
+    ],
 )
 ```
 
-### Change Entity Types
+### Entity Resolution
 
-Edit the prompt in `main.py` → `extract_entities_and_relationships()`:
+Three resolution strategies are available:
+
+1. **Exact Match** (default): Merges entities with identical names
+2. **Fuzzy Match**: Uses Levenshtein distance for similar names (requires `rapidfuzz`)
+3. **Semantic Match**: Uses embeddings for semantic similarity (requires `spacy`)
+
+Configure in your pipeline:
+
 ```python
-"type": "Person|Company|Product|Technology|Location|YourCustomType"
+config = PipelineConfig.from_env()
+config.resolution_type = "fuzzy"  # or "exact" or "semantic"
 ```
 
-### Modify LLM Model
+## Project Structure
 
-Edit `main.py` → `_initialize_components()`:
-```python
-llm_config = {
-    "model": "gemini-2.5-flash",
-    "temperature": 0,
-    "max_retries": 2
-}
 ```
+neo4j-graphrag/
+├── src/
+│   ├── __init__.py
+│   ├── config.py          # Configuration management
+│   ├── database.py         # Neo4j database operations
+│   ├── pipeline.py         # Main GraphRAG pipeline
+│   ├── logging_config.py   # Logging utilities
+│   └── cli.py              # Command-line interface
+├── files/                  # Document storage
+├── logs/                   # Execution logs
+├── cache/                  # Extraction cache
+├── demo.py                 # Demo script
+├── pyproject.toml          # Project dependencies
+└── README.md
+```
+
+## Key Improvements Over POC
+
+This production version includes several improvements:
+
+1. **Entity Deduplication**: MERGE queries now match only on entity name, not document_id
+2. **Proper Constraints**: Uniqueness constraints prevent duplicate entities
+3. **Entity Resolution**: Post-processing step to merge similar entities
+4. **Modular Architecture**: Clean separation of concerns
+5. **Error Handling**: Graceful fallbacks and detailed logging
+6. **Vector Search**: Proper vector index setup and querying
+7. **CLI Tools**: Rich command-line interface for all operations
 
 ## Troubleshooting
 
-### "No documents found"
-- Run `python ingest.py` first to add documents
-- Check `.env.local` credentials are correct
+### Duplicate Entities
 
-### "No relevant information found"
-- The question might not relate to the document content
-- Try rephrasing the question
-- Check if the document was ingested successfully
+If you see duplicate entities in your graph:
 
-### Connection errors
-- Verify Neo4j Aura DB is running
-- Check `NEO4J_URI` format: `neo4j+s://xxxxx.databases.neo4j.io`
-- Confirm credentials in `.env.local`
+1. Run entity resolution manually:
+```python
+from neo4j_graphrag.experimental.components.resolver import SinglePropertyExactMatchResolver
 
-### Rate limiting
-- Gemini has rate limits - add delays between chunks if needed
-- Consider using a higher tier API key for production
+resolver = SinglePropertyExactMatchResolver(driver)
+await resolver.run()
+```
 
-## Contributing
+2. Or use the fuzzy matcher for similar names:
+```python
+from neo4j_graphrag.experimental.components.resolver import FuzzyMatchResolver
 
-Feel free to open issues or submit PRs!
+resolver = FuzzyMatchResolver(driver)
+await resolver.run()
+```
+
+### Connection Issues
+
+Ensure your Neo4j credentials are correct and the database is accessible:
+
+```bash
+python -c "from src.config import PipelineConfig; c = PipelineConfig.from_env(); print('OK')"
+```
 
 ## License
 
-MIT
+MIT License
+
+## Contributing
+
+Contributions are welcome! Please read the contributing guidelines before submitting a pull request.

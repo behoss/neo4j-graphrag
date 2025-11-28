@@ -1,15 +1,49 @@
 [project]
-name = "neo4j-graphrag"
-version = "0.1.0"
-description = "Add your description here"
+name = "sensay-graphrag"
+version = "1.0.0"
+description = "Production-ready GraphRAG solution using Neo4j and Google Gemini"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "google-genai>=1.49.0",
-    "langchain-community>=0.3.31",
-    "langchain-google-genai>=2.1.12",
-    "langchain-neo4j>=0.3.0",
-    "langchain-text-splitters>=0.3.11",
+    # Official Neo4j GraphRAG library (from PyPI)
+    "neo4j-graphrag[experimental,google]>=1.0.0",
+    # Neo4j driver
     "neo4j>=5.28.2",
+    # Google Gemini
+    "google-genai>=1.49.0",
+    "langchain-google-genai>=2.1.12",
+    # LangChain for text splitting
+    "langchain-text-splitters>=0.3.0",
+    # Environment management
     "python-dotenv>=1.2.1",
+    # CLI enhancements
+    "rich>=13.7.0",
+    "google-cloud-aiplatform>=1.128.0",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "black>=24.0.0",
+    "ruff>=0.3.0",
+]
+# For fuzzy entity resolution
+fuzzy = [
+    "rapidfuzz>=3.6.0",
+]
+# For semantic entity resolution
+nlp = [
+    "spacy>=3.7.0",
+]
+
+[project.scripts]
+graphrag = "src.cli:main"
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

@@ -1,0 +1,368 @@
+Sensay architecture overview
+Executive Summary
+
+Sensay has developed an AI replica platform built on a modern, adaptable architecture that balances current capabilities with future-proofing measures. The company deliberately avoids building its own infrastructure, instead leveraging managed services (Vercel, Railway, Supabase, Qdrant, HuggingFace) so the team can focus exclusively on building solutions that create value for customers.
+Sensay maintains a dual-track development organization—strategic teams focusing on long-term features and architecture, and tactical teams enabling rapid iteration. A dedicated AI team and Labs & Research group drive continuous exploration of emerging LLM advances, while Customer Success ensures user feedback is quickly translated into feature refinements.
+The core system consists of a Next.js website frontend, Node.js/Hono API, and Python-based RAG (Retrieval-Augmented Generation) worker pipeline, delivering multi-modal experiences through text, voice (ElevenLabs), and video (HeyGen). This is extended through strategic integrations with Telegram, Discord, and an embeddable chat widget.
+Sensay's technological philosophy centers on a "preservation-first" approach, maintaining original data alongside all processing artifacts to enable reprocessing as AI capabilities evolve. Their architecture strategically balances the publishing of open-source components for community adoption (chat widgets, integrations) with proprietary elements (API, RAG workers) that protect core intellectual property.
+The company mitigates obsolescence through modular design, managed infrastructure, and continuous monitoring of emerging AI trends. Their approach to RAG recognizes evolving LLM context windows while maintaining value through improved accuracy, knowledge utilization, and source attribution.
+
+Principles
+
+1. Preservation-First Knowledge Management: Keep original data *and* processing steps. Allows reprocessing with better models/techniques later without data loss. Essential for long-term viability.
+2. Adaptive Architecture: Modular, scalable, ready for change.
+3. Pragmatic Innovation: Use new technologies only for validated needs while continuously experimenting through labs and hackathons to maintain competitive edge without chasing hype.
+4. Multi-Modal, Multi-Provider Strategy: Leveraging diverse AI providers and modalities (text, voice, video) to reduce dependency and maximize capabilities.
+5. Infrastructure Outsourcing: Leverage managed services (Vercel, Railway, Supabase, etc.). Focus engineering on customer value, not infra.
+6. Balanced Open-Source/Proprietary Development: Strategic use of open source for adoption, proprietary for core IP.
+7. API First: Customers should be able to access all functionalities we use internally, with no secret back channels or privileged operations.
+
+Main components
+
+Source: https://www.mermaidchart.com/app/projects/37d912c5-4386-4e6a-89c8-a4bceb2198a4/diagrams/5e04ccd5-7268-40b4-b047-57f5c8e85207/version/v0.1/edit
+
+Sensay.io Website (TypeScript, Next.js, Vercel, not yet open source)
+
+Frontend application handling user interactions, streaming responses, voice input/output via ElevenLabs, and integration with HeyGen for visual avatars.
+
+Sensay Replica Studio (TypeScript, Next.js, part of Sensay Website, not yet open source)
+
+A comprehensive training and management platform for creating and customizing AI replicas, integrated within the main Sensay website. It offers tools for content training through text Q&A, file uploads, voice recordings, URL processing, and YouTube transcripts, with a topic-based dashboard for organizing training content. The Replica Studio integrates with external providers and provides customization options for voice (ElevenLabs), appearance (HeyGen), and integration settings with LLMs, Telegram, Discord, X and more.
+
+Sensay API (TypeScript, Node.js/Hono, Vercel, closed source)
+
+Manages API requests, authentication, and chat completions. It integrates with the RAG system through RabbitMQ queues and retrieves context from Qdrant.
+
+Sensay RAG Worker (Python, Railway, closed source)
+
+A Python-based microservice that handles the end-to-end processing pipeline for retrieval-augmented generation workflows. It uses RabbitMQ for reliable asynchronous message processing, extracting text from documents, chunking content, and generating vector embeddings. The system stores embeddings in Qdrant for semantic search and includes special features like knowledge distillation with Claude to create optimized prompts. 
+
+Sensay integrations
+
+Sensay Chat Widget (TypeScript, Next.js, Vercel, not yet open source)
+
+An embeddable chat interface that enables website owners to integrate Sensay replicas into their sites. It proxies requests to the Sensay API, and provides a customizable widget with streamed responses, typing indicators, and suggested questions. The widget supports customizable positioning, color themes, and responsive design across devices.
+
+Sensay Telegram Integration (TypeScript, Railway, open source)
+
+Provides a scalable Telegram bot integration for the Sensay platform. It uses the GrammY library for Telegram API interactions and implements a cluster-based architecture for running multiple bot instances in parallel. The integration consists of a core bot package for handling messaging and a separate orchestrator for distributing bot tokens to worker processes.
+
+Sensay Discord Integration (TypeScript, Railway, not yet open source)
+
+A Discord bot integration that connects Sensay replicas to Discord servers, enabling users to interact
+with AI replicas directly in channels and DMs. It leverages Discord.js for API interactions and
+implements a command-based architecture with slash commands and message context menus. The integration
+features user authentication, conversation history tracking, and replica-specific permissions management.
+It includes webhook support for notifications, custom embed formatting for rich content display, and
+handles Discord's rate limits with an intelligent queue system.
+
+Strategy
+
+Sustainability of current technologies
+
+Our sustainability strategy leverages established open source components (React/NextJS) and SaaS solutions (Stripe) while relying on managed infrastructure (Vercel, Railway) and cloud-native data services (Supabase, Qdrant). This approach allows us to concentrate on developing our core proprietary technologies:
+
+* Wisdom Engine with RAG pipeline, attribution, and hallucination prevention
+* Custom model routing across multiple LLMs
+* Configurable guardrails system with per-replica capabilities
+* Multi-modal architecture for text, video, audio, and voice
+* Comprehensive ingestion pipelines with optimization for vector search
+
+Our development process reinforces sustainability through tight integration with product management. We deliberately match solution complexity to problem validation, implementing sophisticated solutions only for verified needs. Development is guided by systematic study of industry practices and competitor approaches, with continuous tracking of advancements like OpenAI's API evolutions.
+For content processing, we've built specialized pipelines that extract, clean, optimize and store knowledge while preserving semantic integrity—removing irrelevant elements like website navigation while enhancing vector search performance.
+This focused approach ensures we maintain technological relevance while directing resources toward capabilities that strengthen our competitive position.
+
+Technology obsolescence risk mitigation
+
+From day one, we've implemented a comprehensive obsolescence mitigation strategy. At its foundation is our commitment to preserve all original data and processing artifacts. We store the verbatim content of all files, images, websites, and other knowledge sources, alongside the intermediate outputs from each processing stage—cleaning, pre-processing, distilling, and summarizing.
+This complete processing lineage is maintained in Supabase, creating a persistent knowledge repository that enables us to:
+
+* Reprocess original content when new technologies emerge
+* Refine existing processing pipelines as our capabilities advance
+* Adapt to industry evolutions without data loss or degradation
+* Apply new techniques to historical data for continuous improvement
+
+Our team structure also reinforces this approach. We ensure each developer's skills align with project requirements, avoiding redundant work and maximizing expertise utilization. By leveraging well-maintained, open-source technologies, we further reduce the risk of developing soon-to-be-obsolete components.
+This preservation-first approach, combined with our modular architecture, ensures we can adapt to technology shifts without sacrificing the value of existing investments or requiring complete system rebuilds.
+
+Scalability and adaptability framework
+
+Our architecture is engineered for scalability at every layer, strategic teams focus on long-term architectural evolution, while Tactical teams rapidly adapt features; both coordinate on a modular, serverless stack under continuous review.
+Horizontally, we've implemented serverless components that automatically scale with demand, while our infrastructure providers support vertical scaling as processing requirements increase. Critical system elements like RabbitMQ provide resilient message queuing, and our containerized, stateless RAG Worker enables seamless horizontal scaling.
+For data management, Qdrant's clustering and sharding capabilities ensure our vector store grows proportionally with our dataset. We've also future-proofed our language capabilities by selecting multilingual embedding models that support emerging languages and domains.
+Our forward-looking approach includes continuous monitoring of emerging AI trends, allowing us to integrate relevant innovations and maintain flexibility. This adaptability ensures we can pivot quickly as the industry evolves, positioning us to capitalize on new opportunities rather than being constrained by legacy decisions.
+
+RAG technology viability strategy
+
+We recognize the evolving landscape of LLM context windows—now exceeding 1M tokens in models like Gemini—and have developed a multi-faceted approach to maintain our technological edge.
+We've already implemented full prompt caching for LLMs that support large context windows, allowing us to efficiently leverage expanded capabilities while managing token costs. This approach lets the users enjoy the benefits of RAG or the power of extended context
+Despite these advancements, we maintain that RAG delivers significant value through:
+
+* Grounding responses in up-to-date, domain-specific information
+* Improving factual accuracy and reducing hallucinations
+* Enabling efficient knowledge utilization across domains
+* Providing source attribution for enhanced user trust
+
+Our future-proofing strategy includes:
+
+1. Developing hybrid solutions combining RAG with strategic context utilization
+2. Implementing advanced summarization techniques for context optimization
+3. Exploring agent-based retrieval systems for complex knowledge domains
+4. Maintaining modular architecture that allows component-level upgrades
+
+The preservation of original content and processing lineage in our knowledge base ensures we can rapidly adapt our RAG implementation as LLM capabilities evolve, converting potential obsolescence risks into opportunities for enhanced performance.
+
+Open source strategy
+
+We've established clear boundaries between proprietary and open-source components based on strategic value assessment.
+
+Open Source Components:
+
+1. Chat widget
+2. Telegram integration
+3. Discord integration
+4. ... any future integrations
+5. Website
+6. Replica Studio UX
+
+Proprietary Closed Source Components:
+
+1. API
+2. RAG Workers
+3. Database (for privacy and security)
+
+Our community engagement strategy leverages security and feature bug bounties, which will become even more effective as we expand our open-source footprint. This approach balances competitive protection of our "magic sauce" with the benefits of community contribution and transparency.
+The strategic delineation ensures we maintain control over core intellectual property while fostering adoption and integration through accessible interface components.
+
+Technology roadmap
+
+Our technology roadmap balances ongoing initiatives with strategic aspirations to ensure continuous evolution of our platform. We've structured this roadmap to maintain competitive advantage while creating clear pathways for future development.
+
+Current Initiatives
+
+Our AI Capability Evolution Framework has established core operational elements. @user and @user currently lead regular evaluation of emerging LLM architectures and new market players, providing valuable competitive intelligence. We've successfully implemented automated quality checks for customer replicas using PromptFoo, enabling systematic quality assurance when deploying new LLMs. @user has developed comprehensive model selection criteria through in-depth analysis, balancing performance, cost, and feature requirements—a process we continue to refine as the LLM landscape evolves.
+Our commitment to innovation is demonstrated through our active experimental programs. We've dedicated resources via Sensay Labs and External agencies to test promising technologies in controlled environments before considering mainstream adoption. This approach has already yielded tangible results with the successful launch of experimental concepts as separate brands, including Draftr and KOLZ. Our established monthly hackathons provide additional innovation capacity, enabling team members across the organization to explore unconventional solutions and push technological boundaries.
+
+Strategic Aspirations
+
+This roadmap represents potential development priorities that will be evaluated based on business needs, resource availability, and market conditions.
+
+* OpenAI-Compatible Completions Endpoint represents a significant advancement in platform accessibility. By implementing an industry-standard API endpoint that mirrors the OpenAI completions signature, we aim to facilitate seamless integration for developers already familiar with this widely-adopted format. This initiative would provide unified access to Sensay's multi-provider LLM ecosystem through a consistent interface, substantially reducing integration complexity and development overhead for third-party developers seeking to leverage our capabilities.
+* Enterprise Workflow Integration would extend our reach into established business processes. By developing native integrations with popular workflow automation platforms like Zapier and n8n, we can leverage the standardized API endpoint to simplify connection requirements. This approach would enable powerful no-code/low-code automation capabilities for enterprise customers, supplemented by comprehensive, documented templates for common AI replica workflow scenarios that accelerate deployment.
+* Autonomous Knowledge System would transform information handling within replicas. This system could automatically identify knowledge gaps in replica information while proactively suggesting relevant content sources for ingestion. By maintaining knowledge freshness through scheduled re-verification processes and implementing cross-reference validation, we would ensure consistency across all information. The system could further develop intelligent feedback loops enabling replicas to request specific information from owners when encountering knowledge limitations.
+* Developer Ecosystem Expansion would extend our innovation capacity beyond internal resources. By enabling third-party development of specialized replica types and supporting custom integration development without granting access to core systems, we can maintain security while encouraging developer participation. This approach could ultimately create a vibrant marketplace for replica extensions and capabilities, fostering innovation around our core technology.
+* Strategic Technology Monitoring would institutionalize our innovation process through systematic quarterly assessments of emerging technologies relevant to our domain. This program could include a formal classification system for technology maturity and adoption readiness, alongside clearly defined pathways from initial exploration to production implementation. This methodical approach would help ensure we remain at the forefront of technological developments while making prudent adoption decisions.
+* Research and Innovation Partnerships would connect us with leading research institutions exploring next-generation AI capabilities. By establishing relationships with complementary technology providers for integrated solution development and securing participation in early access programs for upcoming AI model releases, we could gain enhanced visibility into emerging technologies and preferred access to capabilities that might provide competitive advantages.
+* Technical Debt Management System could safeguard long-term sustainability through regular assessment of system components against obsolescence metrics. By implementing scheduled refactoring to prevent technical debt accumulation and establishing clear criteria for replacement versus enhancement decisions, we would ensure our architecture remains adaptable and responsive to technological evolution without compromising performance or reliability.
+
+Technology stack
+
+Frontend Development
+
+TypeScript (Programming language)
+
+A statically typed superset of JavaScript that has become an industry standard. It prevents many runtime errors, enhances code maintainability, and provides excellent IDE integration with self-documenting code. Type definitions can occasionally become verbose, and there can be challenges with type coercion in third-party libraries.
+
+Next.js (Website framework)
+
+A widely adopted React framework that provides built-in server-side rendering and static generation, optimized for performance and SEO. It offers simplified routing, excellent development experience, and seamless Vercel deployment. Advanced performance tuning requires deeper knowledge, and build sizes can grow large with many dependencies. There's also a learning curve for newer features like React Server Components.
+
+Auth.js (Authentication framework)
+
+Streamlines authentication with support for multiple providers while maintaining security through CSRF protection. It integrates seamlessly with Next.js and provides built-in hooks for protected routes. The documentation can be unclear for complex scenarios, and customization often requires understanding framework internals. Users can login via email magic links or using their Google account.
+
+Magic.link (Passwordless login) 
+
+Offers passwordless authentication through secure emails that eliminates the need for traditional passwords while providing a seamless user experience. We should move away from it as it is expensive and use Supabase email magic links instead.
+
+TailwindCSS (UI styling framework)
+
+A utility-first CSS framework that significantly speeds up UI development by eliminating the need for separate CSS files while maintaining design consistency. It delivers excellent performance with minimal CSS output, though it can present a learning curve for designers unfamiliar with the utility-first approach.
+
+Phosphor Icons (UX icons)
+
+A comprehensive icon library offering consistent design language across multiple weight variants. It includes React components with TypeScript support and allows custom icon imports to reduce bundle size. The library is limited to a specific design aesthetic and may require supplementary icons for specialized needs.
+
+Radix UI (UX component framework)
+
+Provides unstyled, accessible UI primitives that comply with WAI-ARIA standards. These composable components with TypeScript support separate styling from functionality for maximum design flexibility. They require more styling work than pre-styled libraries, leading to higher implementation time and a steeper learning curve.
+
+Figma (UX designers’ tool)
+
+A cloud-based design platform enabling real-time collaboration with version history and organized design assets. Its component system aligns with frontend development practices and simplifies developer handoff. The subscription model can be costly for larger teams, and some advanced features are still maturing compared to code-based alternatives.
+
+Storybook (UX components’ examples)
+
+Creates an isolated environment for component development with visual testing and interactive examples. Its plugin ecosystem extends functionality and facilitates collaboration between designers and developers. It does add build complexity to the workflow and requires ongoing maintenance to keep stories synchronized with components.
+
+TODO: Cloudflare
+
+API
+
+Hono (API framework)
+
+A lightweight, high-performance TypeScript framework for our API endpoints with edge runtime compatibility. Its small bundle size improves cold starts on serverless environments. As a newer framework, it has a smaller ecosystem than alternatives like Express, fewer ready-made integrations, and may require more custom middleware development.
+
+Vercel AI SDK (AI integration)
+
+Simplifies integration with various AI providers through a standardized API with streaming support for real-time responses. It handles token management and rate limiting with type-safe interfaces. The abstractions may limit access to provider-specific features and can add complexity compared to direct API usage.
+
+Zod (Validation)
+
+A TypeScript-first schema validation library that performs runtime type validation with clear error messages. It offers composable validation rules and automatic type inference from schemas. There is a learning curve for advanced schema composition, and it has limited built-in validations for specialized formats.
+
+AI & ML
+
+Python (Programming language)
+
+Powers our RAG worker microservice with excellent support for ML/NLP tasks through robust libraries like sentence-transformers and Hugging Face. Its syntax is optimized for readability and has strong async capabilities for I/O-bound operations. Using Python alongside TypeScript does require managing multiple codebases, making cross-service debugging more challenging.
+
+OpenAI / Anthropic Claude / xAI Grok / DeepSeek / Google Gemini (LLMs)
+
+Our multi-provider approach ensures fallback options and offers different cost/performance tradeoffs while reducing dependency on any single vendor. Each provider has slightly different capabilities, which complicates cost optimization and may require provider-specific prompt engineering.
+
+multilingual-e5-large-ies on HuggingFace (Embedding Model)
+A state-of-the-art multilingual embedding model hosted on Hugging Face, optimized for semantic search across multiple languages. It powers vector generation in our RAG Worker, enabling cross-lingual retrieval and content understanding. The model supports a context window of up to 512 tokens, making it suitable for chunking medium-length text with good semantic coverage. Updates or changes in the model version may require index re-generation and performance retuning.
+
+HeyGen (Video AI)
+
+Generates high-quality AI videos with realistic avatars through a straightforward API integration. This creates a differentiating feature for user engagement without requiring custom video solution development. The service becomes expensive at scale, and video latency affects real-time usage scenarios.
+
+ElevenLabs (Voice AI)
+
+Provides industry-leading voice synthesis with multi-language support and voice cloning capabilities. The simple API integrates well with streaming for a consistent voice identity across interactions. It costs more than basic TTS alternatives, and generation latency impacts real-time exchanges.
+
+ScrapingBee (Website Scraping)
+
+Manages web scraping complexity with automatic proxy rotation and bypasses common anti-scraping measures. It supports JavaScript rendering for dynamic content through an API-based approach. Costs increase significantly with request volume, and API failures require implementing fallback mechanisms.
+
+DevOps
+
+Vercel (Serverless hosting)
+
+Our hosting platform featuring seamless Next.js integration and a global edge network for fast content delivery. It offers zero-config deployments with git integration, built-in monitoring, and preview URLs for testing code changes. Some concerns include vendor lock-in, potentially high costs at scale, and less control compared to traditional hosting options.
+
+Railway (Stateful hosting)
+
+Provides a simplified deployment experience compared to AWS with strong GitHub integration for CI/CD. It offers excellent support for Python microservices with built-in monitoring and developer-friendly workflows. Costs can increase significantly as projects scale, and it provides less control than Kubernetes with fewer integration options than major cloud providers.
+
+HuggingFace (AI / LLM hosting)
+
+Houses an extensive repository of open-source ML models that significantly reduce implementation time. Its active community contributes frequent model improvements with framework-agnostic support. API usage costs can grow considerably at production scale, with limited control over model architecture details. 
+
+Data Storage & Messaging
+
+PostgreSQL via Supabase (Long term storage database)
+
+A managed PostgreSQL database that includes built-in authentication, row-level security, and auto-generated TypeScript types. It provides real-time subscription capabilities with an integrated admin dashboard. Control over database configuration is limited, and complex queries may face performance challenges as usage increases.
+
+Qdrant Cloud 
+
+A purpose-built vector database optimized for similarity search that efficiently stores and retrieves high-dimensional embeddings. It employs fast Approximate Nearest Neighbors (ANN) algorithms for semantic search with filterable metadata support for hybrid queries. As a managed service, it reduces operational overhead while allowing you to focus on implementation. Being newer technology, it comes with evolving best practices and requires vector-specific expertise for performance optimization. Query complexity increases both cost and latency, with scaling costs tied to both vector dimensions and collection size. We also reviewed other offerings, like phVector and other competitors, but this was the best.
+
+Redis via Upstash (Fast cache)
+
+A serverless Redis solution with pay-per-use pricing and global replication for low-latency access. Its REST API access simplifies integration without infrastructure management overhead. It offers fewer advanced Redis features than self-hosted options, and costs can scale unpredictably with heavy usage.
+
+RabbitMQ via CloudAMQP (Message queue for async operations)
+
+A fully managed RabbitMQ service offering high availability, disaster recovery, and integrated monitoring. It simplifies setup and scales without infrastructure management burdens. The service costs more than self-hosted options and may introduce network latency between services with limited customization options.
+
+Development tooling
+
+Cursor / Windsurf (AI code editors)
+
+AI-powered code editor that provides assistance without context switching, generating code directly within the editor. It includes AI-powered code search and a chat interface for explaining and refining code. As a relatively new product, it may have stability issues and creates some dependency on external AI services, with potential privacy concerns.
+
+Biome (Code formatting)
+
+An all-in-one toolchain for linting, formatting, and code quality that outperforms the traditional ESLint+Prettier combination. It provides native support for modern TypeScript and ensures consistent code style. Being newer, it has potential stability issues, fewer plugins than the ESLint ecosystem, and limited community resources.
+
+Sentry (Error and performance logging)
+
+Delivers real-time error tracking with performance measurements and session replay for reproducing issues. It provides detailed stack traces and integrates with our deployment workflow. Costs increase with error volumes, and there's a learning curve for effective issue management.
+
+External Integrations
+
+Grammy (Telegram)
+
+An elegant Telegram bot framework with strong TypeScript support and middleware architecture for clean, modular code. It includes built-in session management and support for advanced Telegram features, though updates occasionally lag behind Telegram Bot API changes.
+
+Stripe (Payments)
+
+A comprehensive payment processing platform with global support, strong documentation, and built-in fraud prevention. It handles subscription billing and complex payment flows while maintaining compliance with international regulations. Transaction fees are higher than some alternatives, and advanced use cases can require complex integration.
+
+wagmi / viem / ethers.js (Web3)
+
+Modern libraries for Web3 integration with React hooks, type-safe Ethereum interactions, and efficient connection management. The ecosystem evolves rapidly with occasional breaking changes, and using multiple libraries increases complexity. Support for non-Ethereum chains is more limited.
+
+Google Analytics (Analytics)
+
+Offers comprehensive user behavior tracking with customizable event tracking and conversion goals. It provides audience segmentation capabilities with a free tier that's adequate for many use cases. Privacy concerns require careful cookie consent management for GDPR compliance, and data sampling on high-traffic sites can limit accuracy.
+
+Google Tag Manager (Ads)
+
+Centralizes management of tracking scripts and pixels without requiring developer involvement for many changes. It includes version control, event-based triggers, and support for A/B testing. Performance can be affected if not optimized, and complex setups may lead to tag conflicts with potential security concerns.
+
+TODO
+
+1. Insert a Glossary or Definitions Section:
+    1. Terms like RAG, vector embeddings, context window, knowledge chunking, or “replicas” may need quick definitions.
+    2. A short glossary prevents confusion for readers who are less familiar with these AI/ML or chat-specific terms.
+2. Consolidate Security & Compliance:
+    1. Consider adding a dedicated section on security, data privacy, and compliance. Even if your approach is described at various points in the text, having a standalone subsection helps readers understand how you protect data, handle personal information, mitigate abuse, etc.
+    2. Data encryption (at rest, in transit).
+    3. Authentication and authorization mechanisms (beyond just NextAuth).
+    4. Handling of sensitive data (PII, user uploads, voice clones).
+    5. Infrastructure security measures (leveraging managed service security).
+    6. Compliance considerations (GDPR, etc.).
+    7. Security hardening for integrations (API keys, rate limiting, input validation).
+3. Highlight Observability & Monitoring:
+    1. Currently, logging, error tracking, and general observability are mentioned as part of Sentry.
+    2. A small “Observability & Monitoring” section (how logs are aggregated, how errors are triaged, and how performance is measured) could clarify how you handle uptime and health checks.
+4. Elaborate on Data Lifecycle & Data Privacy:
+    1. Your “Preservation-First” principle is excellent, but adding more about data retention policies, backup/restore frequency, encryption at rest/in transit, and role-based access would enrich the description.
+    2. Clarify how user-generated content and personal data are handled, especially for voice clones or user-uploaded data.
+5. Clarify RAG Worker Architecture & Pipeline:
+    1. RAG is central to your offering. A short breakdown of how the ingestion → chunking → embedding → vector storage flow works would clarify the pipeline.
+    2. Show how reprocessing fits in (e.g., if a new embedding model is introduced, how do you batch-reprocess all stored content?).
+    3. Add a short subsection or bullet points under the "Sensay RAG Worker" detailing the typical ingestion/processing flow: e.g., Receive Task (via RabbitMQ) -> Fetch Source Content -> Clean/Pre-process Text -> Chunk Text -> Generate Embeddings (using selected model) -> Store Chunks & Vectors (in Qdrant) -> Signal Completion. Also, briefly mention how retrieval works during a query.
+6. Security Hardening for Integrations:
+    1. Telegram, Discord, and embeddable widgets can introduce security risks (e.g., injection, spam, unauthorized data access).
+    2. A few notes about how you’ve prevented or mitigated these (e.g., per-replica permissioning, API key rotation, rate limiting) give confidence in the solution’s maturity.
+7. Add a Brief Testing & QA Overview:
+    1. You mention PromptFoo for LLM QA, but consider describing a bit more about how unit tests, integration tests, or load tests are organized.
+    2. Readers may want to know if you maintain staging environments, how you do canary deployments, or how you test new AI models before production.
+8. Address Continuous Deployment & Delivery:
+    1. Currently, the doc references Git-based deployments (Vercel, Railway).
+    2. Briefly describing the typical pipeline (pull request → automated tests → preview deployment → production) could help new contributors or technical stakeholders see the full lifecycle.
+    3. Add a sentence or two describing the typical deployment flow, e.g., Code pushed to Git -> Automated tests run -> Preview deployment created (Vercel/Railway) -> Manual review/QA -> Merge to main -> Production deployment.
+9. Prioritize Roadmap Items:
+    1. If you have internal priorities (e.g., “Autonomous Knowledge Management System is Q4 2025,” “Ecosystem Development Platform is Q2 2026”), mention them so the engineering team can plan. Work with @user on this
+    2. Add info about integrations to business systems like Slack where the replica can participate but also learn from the owner seamlessly
+10. Open Source Governance:
+    1. If you plan to expand your open source footprint, consider describing the governance process: how you review contributions, versioning approach, or how you manage community PRs.
+11. Compliance & Licensing:
+    1. Briefly mention the licenses of your open source repos (MIT, GPL, etc.). This transparency helps adopters.
+12. Pricing & Freemium model
+13. Strengthen Component Interaction Descriptions: While components are listed, explicitly describing the handshake between them improves clarity.
+14. Briefly add how components trigger each other. For example, under "Sensay API," mention it receives requests from the frontend/integrations, triggers asynchronous processing in the RAG worker via RabbitMQ, and queries Qdrant for context before calling the LLM. Under "Sensay RAG Worker," mention it listens to RabbitMQ queues triggered by the API.
+
+
+
+
+WIP
+Wisdom engine
+
+* Daily cronjob (cron-dkb@Railway) 
+* Checks if there are deleted KB entries
+    * Regenerates the whole distilled prompt
+    * Save on the database in kb_distilled marked as action=DELETION
+* Checks if there are new KB entries
+    * Group yesterday’s kb entries by replica id
+
+
+KB Distilled=has a summary of who the character is, their personality and way os speaking, key facts about their background and knowledge
+
+MB: Add SDLC canvas
+Start projects with feature teams, create temporary slack channel, link linear product updates to slack channel, 30 days money back guarantee, retro at the end of the project, make api deliver mock endpoints as first steps, move away from the concept of different teams but to experts of a certain areas associates to projects. Teams need to do in depth architectural kickoff with one day sized tasks. Not ok for Devs to not review the code they are merging.
